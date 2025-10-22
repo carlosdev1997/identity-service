@@ -1,6 +1,7 @@
 # 🔐 Identity & Authentication Management
 
 Microservicio empresarial para gestión integral de identidades de usuario, construido con arquitectura hexagonal y Domain-Driven Design (DDD).
+Usa un Paquete NPM shared-toolkit para recursos utilitarios compartidos para futuros microservicios.
 
 ## 🚀 Características Principales
 
