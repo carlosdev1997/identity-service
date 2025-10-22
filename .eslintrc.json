@@ -1,0 +1,63 @@
+{
+    "parser": "@typescript-eslint/parser",
+    "parserOptions": {
+        "ecmaVersion": 2022,
+        "sourceType": "module",
+        "project": ["./identity-service/tsconfig.json"]
+    },
+    "extends": [
+        "eslint:recommended",
+        "plugin:@typescript-eslint/recommended",
+        "plugin:@typescript-eslint/recommended-requiring-type-checking",
+        "prettier"
+    ],
+    "plugins": ["@typescript-eslint"],
+    "env": {
+        "node": true,
+        "es2022": true
+    },
+    "rules": {
+        // ============================================
+        // CRÍTICAS - Previenen bugs reales
+        // ============================================
+        "@typescript-eslint/no-explicit-any": "error",
+        "@typescript-eslint/no-floating-promises": "error",
+        "@typescript-eslint/no-misused-promises": "error",
+
+        // ============================================
+        // IMPORTANTES - Clean code común
+        // ============================================
+        "@typescript-eslint/no-unused-vars": [
+            "error",
+            {
+                "argsIgnorePattern": "^_",
+                "varsIgnorePattern": "^_"
+            }
+        ],
+        "prefer-const": "error",
+        "no-var": "error",
+
+        // ============================================
+        // ÚTILES - Mejora código pero no crítico
+        // ============================================
+        "@typescript-eslint/only-throw-error": "warn",
+
+        // ============================================
+        // AJUSTES PARA UNKNOWN TYPES
+        // ============================================
+        "@typescript-eslint/no-unsafe-assignment": "warn", // 👈 Cambiar a warn
+        "@typescript-eslint/no-unsafe-call": "warn", // 👈 Cambiar a warn
+        "@typescript-eslint/no-unsafe-member-access": "warn", // 👈 Cambiar a warn
+
+        // ============================================
+        // NODENEXT - Type imports (opcional)
+        // ============================================
+        "@typescript-eslint/consistent-type-imports": [
+            "warn",
+            {
+                "prefer": "type-imports",
+                "fixStyle": "separate-type-imports"
+            }
+        ]
+    }
+}

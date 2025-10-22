@@ -1,0 +1,23 @@
+# .samignore
+node_modules/
+src/
+tests/
+test/
+*.test.ts
+*.spec.ts
+.git/
+.github/
+.vscode/
+*.md
+.gitignore
+.env*
+coverage/
+docs/
+scripts/
+*.log
+package-lock.json
+yarn.lock
+tsconfig.json
+jest.config.js
+.eslintrc*
+.prettierrc*

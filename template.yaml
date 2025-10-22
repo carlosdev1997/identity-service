@@ -1,0 +1,325 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Identity Service - AWS DEV Environment
+
+Parameters:
+    Stage:
+        Type: String
+        Default: dev
+        Description: Environment stage (dev, staging, prod)
+
+Globals:
+    Function:
+        Runtime: nodejs20.x
+        Architectures:
+            - x86_64
+        Timeout: 30
+        MemorySize: 512
+        Environment:
+            Variables:
+                STAGE: !Ref Stage
+                NODE_OPTIONS: --enable-source-maps
+                EVENTS_TOPIC_ARN: !Ref EventsTopic # AÑADE ESTO
+        Tags:
+            Environment: !Ref Stage
+            Service: identity-service
+        Layers:
+            - !Ref DependenciesLayer
+
+Resources:
+    # ============================================
+    # LAMBDA LAYER FOR DEPENDENCIES
+    # ============================================
+    DependenciesLayer:
+        Type: AWS::Serverless::LayerVersion
+        Properties:
+            LayerName: !Sub 'identity-service-${Stage}-dependencies'
+            Description: Node modules dependencies
+            ContentUri: layer/nodejs
+            CompatibleRuntimes:
+                - nodejs20.x
+            RetentionPolicy: Delete
+
+    # ============================================
+    # SNS TOPIC FOR DOMAIN EVENTS (MOVER ANTES DEL ROL)
+    # ============================================
+    EventsTopic:
+        Type: AWS::SNS::Topic
+        Properties:
+            TopicName: !Sub 'identity-service-${Stage}-events' # NOMBRE FIJO
+            DisplayName: !Sub 'Identity Service Events - ${Stage}'
+            Tags:
+                - Key: Environment
+                  Value: !Ref Stage
+                - Key: Service
+                  Value: identity-service
+
+    # ============================================
+    # SHARED IAM ROLE FOR ALL LAMBDAS
+    # ============================================
+    SharedLambdaExecutionRole:
+        Type: AWS::IAM::Role
+        Properties:
+            RoleName: !Sub 'identity-service-${Stage}-lambda-role'
+            AssumeRolePolicyDocument:
+                Version: '2012-10-17'
+                Statement:
+                    - Effect: Allow
+                      Principal:
+                          Service: lambda.amazonaws.com
+                      Action: sts:AssumeRole
+            ManagedPolicyArns:
+                - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+            Policies:
+                - PolicyName: SSMParameterAccess
+                  PolicyDocument:
+                      Version: '2012-10-17'
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - ssm:GetParameter
+                                - ssm:GetParameters
+                                - ssm:GetParametersByPath
+                            Resource:
+                                - !Sub 'arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/identity-service/${Stage}/*'
+
+                - PolicyName: SNSPublishAccess
+                  PolicyDocument:
+                      Version: '2012-10-17'
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - sns:Publish
+                            Resource: !Ref EventsTopic # ESTO AHORA FUNCIONA CORRECTAMENTE
+
+                - PolicyName: CognitoAccess
+                  PolicyDocument:
+                      Version: '2012-10-17'
+                      Statement:
+                          - Effect: Allow
+                            Action:
+                                - cognito-idp:AdminCreateUser
+                                - cognito-idp:AdminGetUser
+                                - cognito-idp:AdminDeleteUser
+                                - cognito-idp:AdminUpdateUserAttributes
+                                - cognito-idp:InitiateAuth
+                                - cognito-idp:RespondToAuthChallenge
+                                - cognito-idp:ListUsers
+                            Resource: !Sub 'arn:aws:cognito-idp:${AWS::Region}:${AWS::AccountId}:userpool/*'
+
+    # ============================================
+    # API GATEWAY
+    # ============================================
+    IdentityApi:
+        Type: AWS::Serverless::Api
+        Properties:
+            Name: !Sub 'identity-service-${Stage}-api'
+            StageName: !Ref Stage
+            Cors:
+                AllowMethods: "'GET,POST,PUT,DELETE,OPTIONS'"
+                AllowHeaders: "'Content-Type,Authorization,X-Requested-With'"
+                AllowOrigin: "'*'"
+                MaxAge: "'600'"
+            TracingEnabled: true
+            MethodSettings:
+                - ResourcePath: '/*'
+                  HttpMethod: '*'
+                  MetricsEnabled: true
+
+    # ============================================
+    # LAMBDA FUNCTIONS - COMMANDS
+    # ============================================
+    RegisterUserFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-register-user'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/commands/register-user.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /register
+                        Method: POST
+
+    UpdateUserFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-update-user'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/commands/update-user.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /users/{id}
+                        Method: PUT
+
+    AuthenticateUserFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-authenticate-user'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/commands/authenticate-user.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /authenticate
+                        Method: POST
+
+    CompleteNewPasswordFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-complete-new-password'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/commands/complete-new-password-challenge.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /complete-new-password
+                        Method: POST
+
+    RefreshTokensFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-refresh-tokens'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/commands/refresh-tokens.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /refresh-tokens
+                        Method: POST
+
+    DeactivateUserFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-deactivate-user'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/commands/deactivate-user.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /users/{id}/deactivate
+                        Method: POST
+
+    # ============================================
+    # LAMBDA FUNCTIONS - QUERIES
+    # ============================================
+    GetUserByIdFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-get-user-by-id'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/queries/get-user-by-id.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /users/{id}
+                        Method: GET
+
+    GetUserByEmailFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-get-user-by-email'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/queries/get-user-by-email.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /users
+                        Method: GET
+
+    ListUsersFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-list-users'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/rest/lambda-handlers/queries/list-users.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                ApiEvent:
+                    Type: Api
+                    Properties:
+                        RestApiId: !Ref IdentityApi
+                        Path: /users/list
+                        Method: GET
+
+    # ============================================
+    # EVENT HANDLERS (SNS SUBSCRIBERS)
+    # ============================================
+    PasswordChangedEventFunction:
+        Type: AWS::Serverless::Function
+        Properties:
+            FunctionName: !Sub 'identity-service-${Stage}-password-changed-event'
+            CodeUri: ./dist
+            Handler: infrastructure/adapters/inbound/event-handlers/password-changed.handler
+            Role: !GetAtt SharedLambdaExecutionRole.Arn
+            Events:
+                SnsEvent:
+                    Type: SNS
+                    Properties:
+                        Topic: !Ref EventsTopic
+                        FilterPolicy:
+                            eventName:
+                                - PasswordChanged
+
+# ============================================
+# OUTPUTS
+# ============================================
+Outputs:
+    ApiEndpoint:
+        Description: API Gateway endpoint URL
+        Value: !Sub 'https://${IdentityApi}.execute-api.${AWS::Region}.amazonaws.com/${Stage}'
+        Export:
+            Name: !Sub 'identity-service-${Stage}-api-endpoint'
+
+    ApiId:
+        Description: API Gateway ID
+        Value: !Ref IdentityApi
+        Export:
+            Name: !Sub 'identity-service-${Stage}-api-id'
+
+    EventsTopicArn:
+        Description: SNS Topic ARN for domain events
+        Value: !Ref EventsTopic
+        Export:
+            Name: !Sub 'identity-service-${Stage}-events-topic-arn'
+
+    LambdaExecutionRoleArn:
+        Description: Lambda Execution Role ARN
+        Value: !GetAtt SharedLambdaExecutionRole.Arn
+        Export:
+            Name: !Sub 'identity-service-${Stage}-lambda-role-arn'
+
+    DependenciesLayerArn:
+        Description: Dependencies Layer ARN
+        Value: !Ref DependenciesLayer
+        Export:
+            Name: !Sub 'identity-service-${Stage}-dependencies-layer-arn'
+
+    Stage:
+        Description: Deployment stage
+        Value: !Ref Stage

@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",  // 👈 Puedes actualizar a ES2022
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "declaration": true,
+    "sourceMap": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "strictPropertyInitialization": false,  // 👈 IMPORTANTE para Inversify
+
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+
+    "experimentalDecorators": true,  // ✅ Necesario
+    "emitDecoratorMetadata": true    // ✅ Necesario
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
