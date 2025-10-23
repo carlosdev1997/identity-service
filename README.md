@@ -95,7 +95,6 @@ identity-service/
 Este servicio implementa autenticación mediante tokens JWT proporcionados por AWS Cognito.
 
 #### 🔓 Rutas Públicas (no requieren token)
-- `POST /register` - Registro de usuarios
 - `POST /authenticate` - Login inicial
 
 #### 🔐 Rutas Protegidas (requieren JWT)
@@ -106,6 +105,7 @@ Authorization: Bearer eyJraWQiOiJQQ2hYK3FTeU9reHFCYVlFWmJ2djlzRjdiQTg...
 ```
 
 **Endpoints protegidos:**
+- `POST /register`
 - `POST /complete-new-password`
 - `POST /refresh-tokens`
 - `PUT /users/{id}`
