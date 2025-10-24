@@ -1,40 +1,39 @@
 # Identity & Authentication Management
-## Documentación Técnica Simplificada
+## Documentación Técnica General
 
----
-
-## 🎯 ¿Qué es este proyecto?
+## ¿Qué es este proyecto?
 
 Un microservicio de gestión de usuarios y autenticación construido con arquitectura profesional y escalable.
 
-**Función principal:** Manejar el registro, login, perfiles de usuario y control de acceso.
+**Función principal:** Registro de usuarios con generación automática de contraseña temporal enviada por email, autenticación basada en JWT, y gestión básica del ciclo de vida del usuario (activación/desactivación). No incluye manejo de roles ni permisos; su foco está en la identidad y autenticación segura.
 
 ---
 
-## 🛠️ Stack Tecnológico
+## Stack Tecnológico
 
 ### Runtime
-- **Node.js v20 + TypeScript**
+- Node.js v20 + TypeScript
 - Módulos ESNext con resolución NodeNext
 
 ### Base de Datos
-- **PostgreSQL** (AWS RDS)
-- **Prisma ORM** para acceso a datos
+- PostgreSQL (AWS RDS)
+- Prisma ORM para acceso a datos
 
 ### Cloud (AWS)
-- **Lambda:** Funciones serverless
-- **API Gateway:** Exposición de endpoints REST
-- **Cognito:** Autenticación y gestión de usuarios
-- **SNS:** Sistema de eventos asíncronos
-- **SSM Parameter Store:** Configuración centralizada y secretos encriptados
+- Lambda: Funciones serverless
+- API Gateway: Exposición de endpoints REST
+- Cognito: Autenticación y gestión de usuarios
+- SNS: Sistema de eventos asíncronos
+- SSM Parameter Store: Configuración centralizada y secretos encriptados
 
 ### Librerías
-- **Inversify:** Inyección de dependencias
-- **AWS SDK:** Integración con servicios AWS
+- Inversify: Inyección de dependencias. Binding manual de ports a adapters concretos (Prisma, Cognito, SNS), permitiendo cambiar implementaciones sin modificar use cases. Facilita testing futuro mediante mocking.
+- Zod: Validación de schemas y type-safety en requests
+- AWS SDK: Integración con servicios AWS
 
 ---
 
-## 🏗️ Arquitectura
+## Arquitectura
 
 ### Patrón: Arquitectura Hexagonal (Ports & Adapters)
 
@@ -67,29 +66,32 @@ Un microservicio de gestión de usuarios y autenticación construido con arquite
 
 ### Capas
 
-1. **Domain (Core):** Lógica de negocio pura
-   - `UserAggregate`: Encapsula reglas del usuario
-   - `Value Objects`: Email, UserId, FullName, UserStatus
-   - `Domain Events`: Notificaciones de cambios importantes
+**1. Domain (Core): Lógica de negocio pura**
 
-2. **Application (Use Cases):** Orquestación
-   - **Commands:** Operaciones de escritura (registro, actualización)
-   - **Queries:** Operaciones de lectura (consultas)
+   - UserAggregate: Encapsula reglas del usuario
+   - Value Objects: Email, UserId, FullName, UserStatus
+   - Domain Events: Notificaciones de cambios importantes
 
-3. **Infrastructure (Adapters):** Implementación técnica
-   - **Inbound:** Controladores REST
-   - **Outbound:** Adaptadores de Cognito, Prisma, SNS
+**2. Application (Use Cases): Orquestación**
+
+   - Commands: Operaciones de escritura (registro, actualización)
+   - Queries: Operaciones de lectura (consultas)
+
+**3. Infrastructure (Adapters): Implementación técnica**
+
+   - Inbound: Controladores REST
+   - Outbound: Adaptadores de Cognito, Prisma, SNS
 
 ---
 
-## 🔐 Principios de Diseño
+## Principios de Diseño
 
 ### SOLID
-- **Single Responsibility:** Cada clase tiene un propósito único
-- **Open/Closed:** Extensible sin modificar código existente
-- **Liskov Substitution:** Interfaces intercambiables
-- **Interface Segregation:** Interfaces específicas (Writer, Reader, Checker)
-- **Dependency Inversion:** Depende de abstracciones, no de implementaciones
+- Single Responsibility: Cada clase tiene un propósito único
+- Open/Closed: Extensible sin modificar código existente
+- Liskov Substitution: Interfaces intercambiables
+- Interface Segregation: Interfaces específicas (Writer, Reader, Checker)
+- Dependency Inversion: Depende de abstracciones, no de implementaciones
 
 ### Domain-Driven Design (DDD)
 - Modelado orientado al dominio del negocio
@@ -101,30 +103,26 @@ Separación de operaciones de lectura y escritura para optimización independien
 
 ---
 
-## 📡 APIs REST
+## APIs REST
 
 ### Endpoints Públicos (sin autenticación)
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| POST | `/users/register` | Registra nuevo usuario |
-| POST | `/auth/authenticate` | Login con email/password |
-| POST | `/auth/complete-new-password` | Completa cambio de password inicial |
+    POST   /users/register                  → Registra nuevo usuario
+    POST   /auth/authenticate               → Login con email/password
+    POST   /auth/complete-new-password      → Completa cambio de password inicial
 
 ### Endpoints Protegidos (requieren token JWT)
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| POST | `/auth/refresh` | Refresca tokens de acceso |
-| PATCH | `/users/{id}` | Actualiza perfil de usuario |
-| PATCH | `/users/{id}/deactivate` | Desactiva cuenta |
-| GET | `/users/{id}` | Obtiene usuario por ID |
-| GET | `/users` | Lista usuarios (paginado) |
-| GET | `/users/by-email` | Busca usuario por email |
+    POST   /auth/refresh                    → Refresca tokens de acceso
+    PATCH  /users/{id}                      → Actualiza perfil de usuario
+    PATCH  /users/{id}/deactivate           → Desactiva cuenta
+    GET    /users/{id}                      → Obtiene usuario por ID
+    GET    /users                           → Lista usuarios (paginado)
+    GET    /users/by-email                  → Busca usuario por email
 
 ---
 
-## 📦 Formato de Respuestas
+## Formato de Respuestas
 
 ### Respuesta Exitosa
 ```json
@@ -160,26 +158,27 @@ Separación de operaciones de lectura y escritura para optimización independien
 }
 ```
 
-**Dos niveles de información:**
+Dos niveles de información:
 - **user:** Mensaje amigable para el usuario final
 - **developer:** Detalles técnicos para debugging
 
 ---
 
-## 🔄 Flujos Principales
+## Flujos Principales
 
 ### 1. Registro de Usuario
 
 ```
 1. Usuario envía email y nombre → POST /users/register
 2. Sistema crea usuario en Cognito (autenticación)
-3. Sistema valida datos con UserAggregate (dominio)
-4. Sistema guarda usuario en PostgreSQL
-5. Si falla paso 4 → Elimina usuario de Cognito (rollback)
-6. Retorna datos del usuario creado con status "pending"
+3. Cognito genera contraseña temporal y la envía por email
+4. Sistema valida datos con UserAggregate (dominio)
+5. Sistema guarda usuario en PostgreSQL
+6. Si falla paso 5 → Elimina usuario de Cognito (rollback)
+7. Retorna datos del usuario creado con status "pending"
 ```
 
-**Transacción compensatoria:** Garantiza consistencia entre Cognito y PostgreSQL.
+Transacción compensatoria: Garantiza consistencia entre Cognito y PostgreSQL.
 
 ### 2. Autenticación
 
@@ -203,52 +202,52 @@ Separación de operaciones de lectura y escritura para optimización independien
 7. Status del usuario cambia: pending → active
 ```
 
-**Arquitectura orientada a eventos:** Procesamiento asíncrono desacoplado.
+Arquitectura orientada a eventos: Procesamiento asíncrono desacoplado.
 
 ---
 
-## 🛡️ Sistema de Excepciones
+## Sistema de Excepciones
 
 ### Tipos por Capa
 
 **DomainException**
-- `BUSINESS_RULE_VIOLATION`: Regla de negocio violada
-- `INVALID_VALUE_OBJECT`: Value Object inválido
+- BUSINESS_RULE_VIOLATION: Regla de negocio violada
+- INVALID_VALUE_OBJECT: Value Object inválido
 
 **ApplicationException**
-- `ENTITY_NOT_FOUND`: Recurso no existe
-- `DUPLICATE_ENTITY`: Recurso duplicado
-- `USER_NOT_ACTIVE`: Usuario inactivo
-- `TRANSACTION_FAILED`: Error en transacción
+- ENTITY_NOT_FOUND: Recurso no existe
+- DUPLICATE_ENTITY: Recurso duplicado
+- USER_NOT_ACTIVE: Usuario inactivo
+- TRANSACTION_FAILED: Error en transacción
 
 **InfrastructureException**
-- `DATABASE`: Error de base de datos
-- `EXTERNAL_SERVICE`: Fallo en servicio externo
-- `AUTHENTICATION`: Error de autenticación
-- `AUTHORIZATION`: Error de permisos
+- DATABASE: Error de base de datos
+- EXTERNAL_SERVICE: Fallo en servicio externo
+- AUTHENTICATION: Error de autenticación
+- AUTHORIZATION: Error de permisos
 
 ---
 
-## 🔒 Seguridad
+## Seguridad
 
 ### Gestión de Configuración (SSM Parameter Store)
-- **Cognito:** User Pool ID, Client ID, Client Secret (encriptado)
-- **Database:** Connection URL (encriptado)
-- **SNS:** Topic ARN
+- Cognito: User Pool ID, Client ID, Client Secret (encriptado)
+- Database: Connection URL (encriptado)
+- SNS: Topic ARN
 
-**Ventajas:**
+Ventajas:
 - Secretos fuera del código
 - Encriptación nativa con AWS KMS
 - Configuración centralizada y versionada
 
 ### Autenticación
-- **JWT tokens** emitidos por Cognito
+- JWT tokens emitidos por Cognito
 - Validación en cada request protegido
 - Controladores base manejan autenticación automáticamente
 
 ---
 
-## 📚 Shared Toolkit
+## Shared Toolkit
 
 Librería NPM reutilizable que exporta:
 - Excepciones tipadas por capa
@@ -259,34 +258,56 @@ Librería NPM reutilizable que exporta:
 - Controladores base con autenticación JWT
 - Cargador de configuración SSM
 
-**Beneficio:** Consistencia y reutilización en múltiples microservicios.
+Beneficio: Consistencia y reutilización en múltiples microservicios.
 
 ---
 
-## 🎯 Aspectos Destacables
+## Aspectos Destacables
 
- **Arquitectura Limpia:** Dependencias apuntan hacia el dominio  
- **Testeable:** Inyección de dependencias facilita mocking  
- **Mantenible:** Código autodocumentado y estructura predecible  
- **Escalable:** Serverless + CQRS + eventos asíncronos  
- **Seguro:** Gestión de secretos, validación exhaustiva, autenticación robusta  
- **Observable:** Sistema de excepciones con trazabilidad completa
+Arquitectura Limpia → Dependencias apuntan hacia el dominio
 
----
+Testeable → Inyección de dependencias facilita mocking
 
-## 📊 Decisiones Técnicas Clave
+Mantenible → Código autodocumentado y estructura predecible
 
-| Desafío | Solución | Beneficio |
-|---------|----------|-----------|
-| Consistencia entre sistemas | Transacciones compensatorias | Rollback automático |
-| Acoplamiento | Arquitectura hexagonal | Cambios tecnológicos sin afectar dominio |
-| Escalabilidad | CQRS + Serverless | Escala independiente lectura/escritura |
-| Complejidad de errores | Sistema de excepciones estructurado | Debugging eficiente |
-| Procesamiento pesado | Arquitectura de eventos | Ejecución asíncrona no bloqueante |
+Escalable → Serverless + CQRS + eventos asíncronos
+
+Seguro → Gestión de secretos, validación exhaustiva, autenticación robusta
+
+Observable → Sistema de excepciones con trazabilidad completa
 
 ---
 
-## 🚀 Resultado
+## Decisiones Técnicas Clave
+
+CONSISTENCIA ENTRE SISTEMAS
+    Desafío: Mantener coherencia entre PostgreSQL y Cognito
+    Solución: Transacciones compensatorias con rollback automático
+    Beneficio: No existen estados inconsistentes entre sistemas
+
+ACOPLAMIENTO DE COMPONENTES
+    Desafío: Evitar dependencias rígidas entre capas
+    Solución: Arquitectura hexagonal con puertos y adaptadores
+    Beneficio: Cambios tecnológicos sin afectar el núcleo del dominio
+
+ESCALABILIDAD DIFERENCIADA
+    Desafío: Lecturas y escrituras con demandas distintas
+    Solución: CQRS + arquitectura serverless
+    Beneficio: Escala independiente según tipo de operación
+
+COMPLEJIDAD DE ERRORES
+    Desafío: Depuración eficiente sin exponer detalles técnicos
+    Solución: Sistema de excepciones con dos niveles (user/developer)
+    Beneficio: Mejor experiencia de usuario y debugging rápido
+
+PROCESAMIENTO PESADO
+    Desafío: Operaciones no críticas bloquean respuestas
+    Solución: Arquitectura de eventos con SNS
+    Beneficio: Ejecución asíncrona no bloqueante
+
+---
+
+## Resultado
 
 Microservicio de producción empresarial que demuestra:
 - Arquitectura hexagonal y DDD
