@@ -28,7 +28,7 @@ Globals:
 
 Resources:
     # ============================================
-    # LAMBDA LAYER FOR DEPENDENCIES
+    # LAMBDA LAYER PARA DEPENDENCIES
     # ============================================
     DependenciesLayer:
         Type: AWS::Serverless::LayerVersion
@@ -41,7 +41,7 @@ Resources:
             RetentionPolicy: Delete
 
     # ============================================
-    # SNS TOPIC FOR DOMAIN EVENTS (MOVER ANTES DEL ROL)
+    # SNS TOPIC PARA DOMAIN EVENTS
     # ============================================
     EventsTopic:
         Type: AWS::SNS::Topic
@@ -55,7 +55,7 @@ Resources:
                   Value: identity-service
 
     # ============================================
-    # SHARED IAM ROLE FOR ALL LAMBDAS
+    # SHARED IAM ROLE PARA TODAS LAS LAMBDAS
     # ============================================
     SharedLambdaExecutionRole:
         Type: AWS::IAM::Role
